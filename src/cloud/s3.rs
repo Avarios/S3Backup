@@ -39,7 +39,7 @@ async fn put_file(path: &Path) -> Result<(), Box<dyn Error>> {
         Err(e) => {
             return Err(format!(
                 "Not able to upload file to S3 FILE:{} -> ERR: {}",
-                path,
+                path.display(),
                 e.to_string()
             )
             .to_owned())?
