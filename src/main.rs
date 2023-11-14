@@ -1,13 +1,11 @@
 mod cloud;
 use std::{
     env,
-    fs::{self, Metadata},
     path::Display,
     path::Path,
     time::Instant
 };
 use walkdir::{DirEntry, WalkDir};
-
 
 // Add Logger
 // Add Database for failed files and retry
@@ -15,6 +13,7 @@ use walkdir::{DirEntry, WalkDir};
 #[::tokio::main]
 async fn main() {
     let path = env::args().nth(1).expect("No Path provided");
+    let dryRun = env::args().nth(2);
     crawl_path(path);
 }
 
@@ -23,13 +22,12 @@ fn crawl_path(path: String) {
     for entry in WalkDir::new(path) {
         match entry {
             Ok(entry) => {
-                process_entry(entry);
+                let _ = process_entry(entry);
             }
             Err(err) => {
                 let path: Display<'_> = err.path().unwrap_or(Path::new("")).display();
                 println!("failed to access entry {}", path);
                 //Add to logger
-                //Mark as not backuped
             }
         }
     }
@@ -37,13 +35,24 @@ fn crawl_path(path: String) {
    println!("Took {:?}", duration);
 }
 
-fn process_entry(entry: DirEntry) {
+async fn process_entry(entry: DirEntry) {
     if entry.file_type().is_file() {
-        check_archive_status(entry);
+        check_archive_status(entry).await;
     }
    
 }
 
-fn check_archive_status(entry: DirEntry) {
-    cloud::s3::process_file(entry);
+async fn check_archive_status(entry: DirEntry) -> bool {
+    return  true;
+}
+
+async fn upload_file(entry:DirEntry) -> bool {
+    return match cloud::s3::process_file(entry).await {
+        Ok(entry) => {
+            true
+        }
+        Err(e) => {
+            false
+        }
+    }
 }
