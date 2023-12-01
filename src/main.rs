@@ -13,7 +13,8 @@ use walkdir::{DirEntry, WalkDir};
 #[::tokio::main]
 async fn main() {
     let path = env::args().nth(1).expect("No Path provided");
-    let dryRun = env::args().nth(2);
+    let bucket_name = env::args().nth(2).expect("Please put a bucketname as second argument");
+    let bucket_files = cloud::s3::get_all_files_bucket(bucket_name).await;
     crawl_path(path);
 }
 
@@ -37,7 +38,9 @@ fn crawl_path(path: String) {
 
 async fn process_entry(entry: DirEntry) {
     if entry.file_type().is_file() {
-        check_archive_status(entry).await;
+        if check_archive_status(entry).await {
+
+        }
     }
    
 }

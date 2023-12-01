@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 walkdir = "2"
-aws-config = "0.57.1"
-aws-sdk-s3 = "0.35.0"
+aws-config = { version= "1.0.1", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1.4.0"
 tokio = { version = "1", features = ["full"] }
