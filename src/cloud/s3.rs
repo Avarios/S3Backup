@@ -6,8 +6,8 @@ use aws_sdk_s3::primitives::DateTime;
 use walkdir::DirEntry;
 
 pub struct S3_File {
-    filepath:String,
-    last_modified:DateTime
+    pub(crate) filepath:String,
+    pub (crate) last_modified:DateTime
 }
 
 pub async fn get_all_files_bucket(bucket_name:String) -> Result<Vec<S3_File>, Box<dyn Error>> {

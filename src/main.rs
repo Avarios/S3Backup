@@ -5,6 +5,12 @@ use std::{
     path::Path,
     time::Instant
 };
+use cloud::s3::{
+    S3_File,
+    get_all_files_bucket,
+    process_file
+};
+
 use walkdir::{DirEntry, WalkDir};
 
 // Add Logger
@@ -13,17 +19,41 @@ use walkdir::{DirEntry, WalkDir};
 #[::tokio::main]
 async fn main() {
     let path = env::args().nth(1).expect("No Path provided");
-    let bucket_name = env::args().nth(2).expect("Please put a bucketname as second argument");
-    let bucket_files = cloud::s3::get_all_files_bucket(bucket_name).await;
-    crawl_path(path);
+    let bucket_files = get_all_files_bucket(bucket_name).await;
+    match bucket_files {
+        Ok(files) => {
+            let local_files = crawl_path(path);
+            let files = get_files_for_backup(local_files, files);
+            for file in files {
+                upload_file(file).await;
+            }
+        }
+        Err(e) => {
+            println!("{}", e);
+        }
+    }
 }
 
-fn crawl_path(path: String) {
+fn get_files_for_backup(local_files: Vec<DirEntry>, bucket_files: Vec<S3_File>) -> Vec<DirEntry> {
+   //Write me a function that checks if local file is in bucket file and the modify date from local file is lager than from bucket file
+   let mut files = Vec::new();
+   for local_file in local_files {
+       for bucket_file in bucket_files.iter() {
+           if local_file.path().display().to_string() == bucket_file.filepath && local_file.metadata().unwrap().modified().unwrap() > bucket_file.last_modified {
+               files.push(local_file.to_owned());
+           }
+       }
+   }
+   return files;
+}
+
+fn crawl_path(path: String) -> Vec<DirEntry>  {
     let timer = Instant::now();
+    let mut files = Vec::new();
     for entry in WalkDir::new(path) {
         match entry {
             Ok(entry) => {
-                let _ = process_entry(entry);
+                files.push(entry);
             }
             Err(err) => {
                 let path: Display<'_> = err.path().unwrap_or(Path::new("")).display();
@@ -34,6 +64,7 @@ fn crawl_path(path: String) {
     }
    let duration = timer.elapsed();
    println!("Took {:?}", duration);
+   return files;
 }
 
 async fn process_entry(entry: DirEntry) {
