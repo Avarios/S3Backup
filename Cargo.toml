@@ -10,3 +10,5 @@ walkdir = "2"
 aws-config = { version= "1.0.1", features = ["behavior-version-latest"] }
 aws-sdk-s3 = "1.4.0"
 tokio = { version = "1", features = ["full"] }
+chrono = "0.4.31"
+aws-smithy-types-convert = { version = "0.60.0", features = ["convert-chrono"] }

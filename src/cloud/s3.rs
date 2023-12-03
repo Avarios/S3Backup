@@ -2,12 +2,13 @@ use aws_sdk_s3 as s3;
 use s3::primitives::ByteStream;
 use std::error::Error;
 use std::path::Path;
-use aws_sdk_s3::primitives::DateTime;
 use walkdir::DirEntry;
+use aws_smithy_types_convert::date_time::DateTimeExt;
+use chrono::{DateTime, Utc};
 
 pub struct S3_File {
     pub(crate) filepath:String,
-    pub (crate) last_modified:DateTime
+    pub (crate) last_modified:DateTime<Utc>
 }
 
 pub async fn get_all_files_bucket(bucket_name:String) -> Result<Vec<S3_File>, Box<dyn Error>> {
@@ -18,10 +19,10 @@ pub async fn get_all_files_bucket(bucket_name:String) -> Result<Vec<S3_File>, Bo
             let mut file_vec: Vec<S3_File> = Vec::new();
             for file in file_list.contents() {
                 let file_path = file.key().unwrap();
-                let file_last_modified = file.last_modified().unwrap().to_owned();
+                let file_last_modified = file.last_modified().map(|t| t.to_chrono_utc()).unwrap().expect("date must be set");
                 file_vec.push(S3_File {
                     filepath: file_path.to_owned(),
-                    last_modified: file_last_modified,
+                    last_modified: file_last_modified.to_owned()
                 });
             }
             return Ok(file_vec);

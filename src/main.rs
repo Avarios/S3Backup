@@ -10,6 +10,8 @@ use cloud::s3::{
     get_all_files_bucket,
     process_file
 };
+use chrono;
+use chrono::{DateTime, Utc};
 
 use walkdir::{DirEntry, WalkDir};
 
@@ -19,6 +21,7 @@ use walkdir::{DirEntry, WalkDir};
 #[::tokio::main]
 async fn main() {
     let path = env::args().nth(1).expect("No Path provided");
+    let bucket_name = env::args().nth(2).expect("Please provide a bucket name");
     let bucket_files = get_all_files_bucket(bucket_name).await;
     match bucket_files {
         Ok(files) => {
@@ -39,7 +42,9 @@ fn get_files_for_backup(local_files: Vec<DirEntry>, bucket_files: Vec<S3_File>) 
    let mut files = Vec::new();
    for local_file in local_files {
        for bucket_file in bucket_files.iter() {
-           if local_file.path().display().to_string() == bucket_file.filepath && local_file.metadata().unwrap().modified().unwrap() > bucket_file.last_modified {
+           let local_file_time:DateTime<Utc> = chrono::DateTime::from(local_file.metadata().unwrap().modified().unwrap());
+           let bucket_time = bucket_file.last_modified;
+           if local_file.path().display().to_string() == bucket_file.filepath && local_file_time > bucket_time {
                files.push(local_file.to_owned());
            }
        }
@@ -82,10 +87,10 @@ async fn check_archive_status(entry: DirEntry) -> bool {
 
 async fn upload_file(entry:DirEntry) -> bool {
     return match cloud::s3::process_file(entry).await {
-        Ok(entry) => {
+        Ok(_entry) => {
             true
         }
-        Err(e) => {
+        Err(_e) => {
             false
         }
     }
