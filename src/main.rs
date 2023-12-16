@@ -1,17 +1,8 @@
 mod cloud;
-use std::{
-    env,
-    path::Display,
-    path::Path,
-    time::Instant
-};
-use cloud::s3::{
-    S3_File,
-    get_all_files_bucket,
-    process_file
-};
 use chrono;
 use chrono::{DateTime, Utc};
+use cloud::s3::{get_all_files_bucket, put_file, S3_File};
+use std::{env, path::Display, path::Path, time::Instant};
 
 use walkdir::{DirEntry, WalkDir};
 
@@ -20,39 +11,52 @@ use walkdir::{DirEntry, WalkDir};
 // Scheduler
 #[::tokio::main]
 async fn main() {
-    let path = env::args().nth(1).expect("No Path provided");
-    let bucket_name = env::args().nth(2).expect("Please provide a bucket name");
-    let bucket_files = get_all_files_bucket(bucket_name).await;
-    match bucket_files {
+    let path = "E:\\Anleitungen".to_string(); //env::args().nth(1).expect("No Path provided");
+    let bucket_name = "nasbak34243243245".to_string(); //env::args().nth(2).expect("Please provide a bucket name");
+    match get_all_files_bucket(&bucket_name).await {
         Ok(files) => {
             let local_files = crawl_path(path);
-            let files = get_files_for_backup(local_files, files);
-            for file in files {
-                upload_file(file).await;
+            for file in get_files_for_backup(local_files, files) {
+                let local_file = &file;
+                if upload_file(local_file, bucket_name.to_owned().as_str()).await {
+                    //TODO: Exchange with logger or logging DB
+                    println!("Uploaded file: {}", &local_file)
+                } else {
+                    //TODO: Exchange with logger or logging DB
+                    println!("Error Upload File: {}", local_file)
+                }
             }
         }
         Err(e) => {
             println!("{}", e);
+            panic!("Cannot access remot files");
         }
     }
 }
 
-fn get_files_for_backup(local_files: Vec<DirEntry>, bucket_files: Vec<S3_File>) -> Vec<DirEntry> {
-   //Write me a function that checks if local file is in bucket file and the modify date from local file is lager than from bucket file
-   let mut files = Vec::new();
-   for local_file in local_files {
-       for bucket_file in bucket_files.iter() {
-           let local_file_time:DateTime<Utc> = chrono::DateTime::from(local_file.metadata().unwrap().modified().unwrap());
-           let bucket_time = bucket_file.last_modified;
-           if local_file.path().display().to_string() == bucket_file.filepath && local_file_time > bucket_time {
-               files.push(local_file.to_owned());
-           }
-       }
-   }
-   return files;
+fn get_files_for_backup(local_files: Vec<DirEntry>, bucket_files: Vec<S3_File>) -> Vec<String> {
+    //Write me a function that checks if local file is in bucket file and the modify date from local file is lager than from bucket file
+    let mut s3_iter_files = bucket_files.iter();
+    let files_to_backup = local_files
+        .iter()
+        .filter(|file| {
+            let result = s3_iter_files.any(|s3| {
+                let local_file_time: DateTime<Utc> =
+                    chrono::DateTime::from(file.metadata().unwrap().modified().unwrap());
+                let bucket_time = s3.last_modified;
+                let result = String::from(file.path().to_str().unwrap()).contains(&s3.file_key)
+                    && local_file_time > bucket_time;
+                return !result;
+            });
+            return result;
+        })
+        .map(|f| f.path().display().to_string())
+        .collect();
+
+    return files_to_backup;
 }
 
-fn crawl_path(path: String) -> Vec<DirEntry>  {
+fn crawl_path(path: String) -> Vec<DirEntry> {
     let timer = Instant::now();
     let mut files = Vec::new();
     for entry in WalkDir::new(path) {
@@ -67,31 +71,14 @@ fn crawl_path(path: String) -> Vec<DirEntry>  {
             }
         }
     }
-   let duration = timer.elapsed();
-   println!("Took {:?}", duration);
-   return files;
+    let duration = timer.elapsed();
+    println!("Took {:?}", duration);
+    return files;
 }
 
-async fn process_entry(entry: DirEntry) {
-    if entry.file_type().is_file() {
-        if check_archive_status(entry).await {
-
-        }
-    }
-   
-}
-
-async fn check_archive_status(entry: DirEntry) -> bool {
-    return  true;
-}
-
-async fn upload_file(entry:DirEntry) -> bool {
-    return match cloud::s3::process_file(entry).await {
-        Ok(_entry) => {
-            true
-        }
-        Err(_e) => {
-            false
-        }
-    }
+async fn upload_file(path: &String, bucket_name: &str) -> bool {
+    return match cloud::s3::put_file(path, bucket_name).await {
+        Ok(_entry) => true,
+        Err(_e) => false,
+    };
 }
