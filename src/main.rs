@@ -1,10 +1,10 @@
 mod cloud;
 use chrono;
 use chrono::{DateTime, Utc};
-use cloud::s3::{get_all_files_bucket, put_file, S3_File};
-use std::{env, path::Display, path::Path, time::Instant};
-
+use cloud::s3::{get_all_files_bucket, put_file, S3File};
+use std::{env, time::Instant};
 use walkdir::{DirEntry, WalkDir};
+
 
 // Add Logger
 // Add Database for failed files and retry
@@ -13,31 +13,29 @@ use walkdir::{DirEntry, WalkDir};
 async fn main() {
     let path = "E:\\Anleitungen".to_string(); //env::args().nth(1).expect("No Path provided");
     let bucket_name = "nasbak34243243245".to_string(); //env::args().nth(2).expect("Please provide a bucket name");
+    println!("[INFO]::MAIN::main -> Crawling path: {}", path);
     match get_all_files_bucket(&bucket_name).await {
         Ok(files) => {
             let local_files = crawl_path(path);
             for file in get_files_for_backup(local_files, files) {
-                //TODO: Check if entry is file or not
                 let local_file = &file;
                 if upload_file(local_file, bucket_name.to_owned().as_str()).await {
-                    //TODO: Exchange with logger or logging DB
-                    println!("Uploaded file: {}", &local_file)
+                    println!("[INFO]::MAIN::main -> Uploaded file: {}", &local_file)
                 } else {
-                    //TODO: Exchange with logger or logging DB
-                    println!("Error Upload File: {}", local_file)
+                    println!("[ERROR]::MAIN::main -> Error Upload File: {}", local_file)
                 }
             }
         }
         Err(e) => {
             println!("{}", e);
-            panic!("Cannot access remot files");
+            panic!("[ERROR]::MAIN::main -> Cannot access remot files");
         }
     }
 }
 
-fn get_files_for_backup(local_files: Vec<DirEntry>, bucket_files: Vec<S3_File>) -> Vec<String> {
+fn get_files_for_backup(local_files: Vec<DirEntry>, bucket_files: Vec<S3File>) -> Vec<String> {
     //Write me a function that checks if local file is in bucket file and the modify date from local file is lager than from bucket file
-    
+
     let files_to_backup: Vec<String> = local_files
         .into_iter()
         .filter(|file| {
@@ -65,22 +63,29 @@ fn get_files_for_backup(local_files: Vec<DirEntry>, bucket_files: Vec<S3_File>) 
 }
 
 fn crawl_path(path: String) -> Vec<DirEntry> {
+    let local_path = path;
+    println!("[TRACE]::MAIN::CRAWL_PATH -> Starting Crawler for Path : {}", &local_path);
     let timer = Instant::now();
     let mut files = Vec::new();
-    for entry in WalkDir::new(path) {
+    for entry in WalkDir::new(&local_path) {
         match entry {
             Ok(entry) => {
-                files.push(entry);
+                if entry.metadata().unwrap().is_file() {
+                    files.push(entry);
+                }
             }
             Err(err) => {
-                let path: Display<'_> = err.path().unwrap_or(Path::new("")).display();
-                println!("failed to access entry {}", path);
+                println!(
+                    "[ERROR]::MAIN::CRAWL_PATH -> failed to access entry {}, with error {}",
+                    &local_path,
+                    err.to_string()
+                );
                 //Add to logger
             }
         }
     }
     let duration = timer.elapsed();
-    println!("Took {:?}", duration);
+    println!("[TRACE]::MAIN::CRAWL_PATH -> Crawler took {:?} for path {}", duration, &local_path);
     return files;
 }
 
