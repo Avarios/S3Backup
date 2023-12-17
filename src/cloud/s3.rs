@@ -52,7 +52,7 @@ pub async fn get_all_files_bucket(bucket_name: &String) -> Result<Vec<S3File>, B
     }
 }
 
-pub async fn put_file(path: &String, bucket: &str) -> Result<(), Box<dyn Error>> {
+pub async fn put_file(path: &str, bucket: &str) -> Result<(), Box<dyn Error>> {
     println!(
         "[TRACE]::S3::PUT_FILES -> Starting to read file stream for file : {}",
         &path
@@ -61,22 +61,25 @@ pub async fn put_file(path: &String, bucket: &str) -> Result<(), Box<dyn Error>>
     let file_stream = ByteStream::from_path(path.to_owned()).await;
     let local_path = path;
     let stream_data = match file_stream {
-        Ok(stream_data) => stream_data,
+        Ok(stream_data) => {
+            println!(
+                "[TRACE]::S3::PUT_FILES -> Filestream read took {:?} for file {}",
+                timer.elapsed(),
+                &path
+            );
+            stream_data
+        },
         Err(e) => {
-            print!("[ERROR]::S3::PUTFILE Not able to open filestream for: {} with ERR -> {} ", &local_path, e.to_string());
+            print!("[ERROR]::S3::PUTFILE::FILESTREAM Not able to open filestream for: {} with ERR -> {} ", &local_path, e.to_string());
             return Err(format!(
-                "[ERROR]::S3::PUTFILE Not able to open filestream for: {} with ERR -> {} ",
+                "[ERROR]::S3::PUTFILE::FILESTREAM Not able to open filestream for: {} with ERR -> {} ",
                 local_path,
                 e.to_string()
             )
             .to_owned())?
         }
     };
-    println!(
-        "[TRACE]::S3::PUT_FILES -> Filestream read took {:?} for file {}",
-        timer.elapsed(),
-        &path
-    );
+
     println!("[TRACE]::S3::PUT_FILES -> Start upload file: {}", &path);
     let timer = Instant::now();
     let config = aws_config::load_from_env().await;
@@ -89,16 +92,18 @@ pub async fn put_file(path: &String, bucket: &str) -> Result<(), Box<dyn Error>>
         .body(stream_data)
         .send()
         .await;
-    println!(
-        "[TRACE]::S3::PUT_FILES -> Upload took {:?} for file {}",
-        timer.elapsed(),
-        &path
-    );
     match put_object_output {
-        Ok(_) => return Ok(()),
+        Ok(_) => {
+            println!(
+                "[TRACE]::S3::PUT_FILES -> Upload took {:?} for file {}",
+                timer.elapsed(),
+                &path);
+            return Ok(())
+        },
         Err(e) => {
+            print!("[ERROR]::S3::PUTFILE::S3_PUT unable to put file for: {} with ERR -> {} ", &local_path, e.to_string());
             return Err(format!(
-                "[ERROR]::S3::PUTFILE Not able to upload file to S3 FILE:{} -> ERR: {}",
+                "[ERROR]::S3::PUTFILE::S3_PUT Not able to upload file to S3 FILE:{} -> ERR: {}",
                 local_path,
                 e.to_string()
             )
