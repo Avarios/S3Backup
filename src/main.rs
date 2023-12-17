@@ -37,22 +37,31 @@ async fn main() {
 
 fn get_files_for_backup(local_files: Vec<DirEntry>, bucket_files: Vec<S3_File>) -> Vec<String> {
     //Write me a function that checks if local file is in bucket file and the modify date from local file is lager than from bucket file
-    let mut s3_iter_files = bucket_files.iter();
-    let files_to_backup : Vec<String> = local_files
-        .iter()
+    
+    let files_to_backup: Vec<String> = local_files
+        .into_iter()
         .filter(|file| {
-            return !s3_iter_files.any(|s3| {
-                let local_file_time: DateTime<Utc> =
-                    chrono::DateTime::from(file.metadata().unwrap().modified().unwrap());
-                let bucket_time = s3.last_modified;
-                return String::from(file.path().to_str().unwrap()).contains(&s3.file_key)
-                    && local_file_time > bucket_time;
-            });
+            //TODO: Replace any
+            let mut files_bucket = bucket_files.to_vec().into_iter();
+            let file_path = String::from(file.path().display().to_string());
+
+            match files_bucket.find(|f| f.file_key.eq(&file_path)) {
+                Some(f) => {
+                    let local_file_time: DateTime<Utc> =
+                        chrono::DateTime::from(file.metadata().unwrap().modified().unwrap());
+                    let bucket_time = f.last_modified;
+                    let is_newer = local_file_time > bucket_time;
+                    return is_newer;
+                }
+                None => {
+                    return true;
+                }
+            };
         })
         .map(|f| f.path().display().to_string())
         .collect();
 
-    return files_to_backup.to_owned();
+    return files_to_backup;
 }
 
 fn crawl_path(path: String) -> Vec<DirEntry> {

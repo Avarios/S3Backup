@@ -5,6 +5,7 @@ use aws_smithy_types_convert::date_time::DateTimeExt;
 use chrono::{DateTime, Utc};
 use s3::primitives::ByteStream;
 
+#[derive(Clone)]
 pub struct S3_File {
     pub(crate) file_key: String,
     pub(crate) last_modified: DateTime<Utc>,
