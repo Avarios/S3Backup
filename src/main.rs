@@ -6,24 +6,34 @@ use std::{env, time::Instant};
 use walkdir::{DirEntry, WalkDir};
 
 
+static bucket_name:&str = "nasbak34243243245";
+
 // Add Logger
 // Add Database for failed files and retry
 // Scheduler
 #[::tokio::main]
 async fn main() {
-    let path = "E:\\Anleitungen".to_string(); //env::args().nth(1).expect("No Path provided");
-    let bucket_name = "nasbak34243243245".to_string(); //env::args().nth(2).expect("Please provide a bucket name");
+    println!("[TRACE]::MAIN -> Starting backup");
+    let timer = Instant::now();
+    let path = "C:\\Users\\pawel\\Pictures\\2023".to_string(); //env::args().nth(1).expect("No Path provided"); //env::args().nth(2).expect("Please provide a bucket name");
     println!("[INFO]::MAIN::main -> Crawling path: {}", path);
-    match get_all_files_bucket(&bucket_name).await {
+    match get_all_files_bucket(&bucket_name.to_owned()).await {
         Ok(files) => {
             let local_files = crawl_path(path);
-            for file in get_files_for_backup(local_files, files) {
-                let local_file = &file;
-                if upload_file(local_file, bucket_name.to_owned().as_str()).await {
-                    println!("[INFO]::MAIN::main -> Uploaded file: {}", &local_file)
-                } else {
-                    println!("[ERROR]::MAIN::main -> Error Upload File: {}", local_file)
-                }
+            let files_to_backup = check_backup_state(local_files, files);
+            
+            let tasks: Vec<_> = files_to_backup.into_iter()
+                .map(|item| tokio::spawn(async {
+                    let local_file = item;
+                    if upload_file(&local_file).await {
+                        println!("[INFO]::MAIN::main -> Uploaded file: {}", &local_file)
+                    } else {
+                        println!("[ERROR]::MAIN::main -> Error Upload File: {}", local_file)
+                    }
+                }))
+                .collect();
+            for task in tasks {
+                task.await.unwrap();
             }
         }
         Err(e) => {
@@ -31,9 +41,10 @@ async fn main() {
             panic!("[ERROR]::MAIN::main -> Cannot access remot files");
         }
     }
+    println!("[TRACE]::MAIN -> Backup took {:?}", timer.elapsed());
 }
 
-fn get_files_for_backup(local_files: Vec<DirEntry>, bucket_files: Vec<S3File>) -> Vec<String> {
+fn check_backup_state(local_files: Vec<DirEntry>, bucket_files: Vec<S3File>) -> Vec<String> {
     //Write me a function that checks if local file is in bucket file and the modify date from local file is lager than from bucket file
 
     let files_to_backup: Vec<String> = local_files
@@ -89,8 +100,8 @@ fn crawl_path(path: String) -> Vec<DirEntry> {
     return files;
 }
 
-async fn upload_file(path: &String, bucket_name: &str) -> bool {
-    return match put_file(path, bucket_name).await {
+async fn upload_file(path: &String) -> bool {
+    return match put_file(path, &bucket_name).await {
         Ok(_entry) => true,
         Err(_e) => false,
     };
